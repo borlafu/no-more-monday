@@ -1,9 +1,26 @@
 #!/usr/bin/env python3
-"""Usage: monday_time_report.py <jwt_session_token> <item_id> [column_id]"""
+"""Usage: monday_time_report.py <jwt_session_token> <item_id> [--start-time HH:MM] [--end-time HH:MM]"""
 
-import json, sys, subprocess
+import json, subprocess, argparse, os
 from datetime import datetime, date
 from collections import defaultdict
+
+
+def load_env():
+    env_path = os.path.join(os.path.dirname(__file__), ".env")
+    with open(env_path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, _, v = line.partition("=")
+            os.environ.setdefault(k.strip(), v.strip())
+
+
+load_env()
+
+MONDAY_TENANT = os.getenv("MONDAY_TENANT", "gs-grupo")
+COLUMN_ID = os.getenv("COLUMN_ID", "seguimiento_del_tiempo__1")
 
 
 def prompt_start_date() -> date:
@@ -20,13 +37,24 @@ def prompt_start_date() -> date:
 
 
 def main():
-    if len(sys.argv) < 3:
-        print(__doc__)
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Monday.com Time Report")
+    parser.add_argument("jwt", help="JWT session token")
+    parser.add_argument("item_id", help="Item ID")
+    parser.add_argument(
+        "--start-time",
+        default="09:00",
+        help="Default daily start time (HH:MM, for reference, default: 09:00)",
+    )
+    parser.add_argument(
+        "--end-time",
+        default="11:00",
+        help="Default daily end time (HH:MM, for reference, default: 11:00)",
+    )
+    args = parser.parse_args()
 
-    jwt = sys.argv[1]
-    item_id = sys.argv[2]
-    column_id = sys.argv[3] if len(sys.argv) > 3 else "seguimiento_del_tiempo__1"
+    jwt = args.jwt
+    item_id = args.item_id
+    column_id = COLUMN_ID
     cookies = f"jwt_session_token={jwt}"
 
     start_date = prompt_start_date()
@@ -35,13 +63,13 @@ def main():
         [
             "curl",
             "-s",
-            f"https://gs-grupo.monday.com/duration_column_history/{item_id}/{column_id}",
+            f"https://{MONDAY_TENANT}.monday.com/duration_column_history/{item_id}/{column_id}",
             "-H",
             "accept: application/json",
             "-H",
             "x-requested-with: XMLHttpRequest",
             "-H",
-            "origin: https://gs-grupo.monday.com",
+            f"origin: https://{MONDAY_TENANT}.monday.com",
             "-b",
             cookies,
         ],

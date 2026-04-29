@@ -9,30 +9,77 @@ Automate time tracking and reporting for Monday.com. Backfill time entries and g
 - **Interactive Prompts**: User-friendly input for dates, times, and authentication
 - **Daily Reports**: View hours logged per day with day-of-week labels
 - **Weekly Reports**: Aggregate hours by ISO week numbers
-- **Flexible Configuration**: Support for custom Monday.com boards and columns
+- **Flexible Configuration**: Parameterized via `.env` file and CLI arguments
+
+## Setup
+
+### Prerequisites
+
+1. Python 3
+2. curl (standard on MacOS and Linux)
+3. **Monday.com Account Access**
+   - JWT session token (found in browser cookies or request headers)
+   - Item ID (visible in Monday.com board URL or API)
+   - Column ID (can be extracted from API responses)
+
+#### How to Get Your JWT Token
+
+1. Open Monday.com in your browser
+2. Open Developer Tools (F12 / Cmd+Shift+I)
+3. Go to **Application** → **Cookies**
+4. Find the `jwt_session_token` cookie and copy its value
+
+#### How to Get CSRF Token
+
+1. In Developer Tools, go to **Network** tab
+2. Make a request to your Monday.com board
+3. Look for any POST request headers
+4. Find the `x-csrf-token` header value
+
+### Configuration
+
+Create a `.env` file in the project root (copy from `.env.example`):
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your Monday.com details:
+
+```env
+MONDAY_TENANT=gs-grupo               # Your Monday.com subdomain
+COLUMN_ID=seguimiento_del_tiempo__1  # The column ID for time tracking
+```
 
 ## Scripts
 
-### `monday_time_input.py` — Backfill Time Entries
+### Backfill Time Entries
+
+> `monday_time_input.py`
 
 Batch-populate time entries for a date range with interactive prompts and weekend skipping.
 
 **Usage:**
 
 ```bash
-python3 monday_time_input.py <jwt_session_token> <item_id> [column_id]
+python3 monday_time_input.py <jwt_session_token> <item_id> [--start-time HH:MM] [--end-time HH:MM]
 ```
 
 **Parameters:**
 
 - `jwt_session_token`: Your Monday.com JWT session token (from cookies)
 - `item_id`: Monday.com item ID for the duration column
-- `column_id` *(optional)*: Column ID (default: `seguimiento_del_tiempo__1`)
+- `--start-time` *(optional)*: Default daily start time (HH:MM, default: `09:00`)
+- `--end-time` *(optional)*: Default daily end time (HH:MM, default: `11:00`)
 
-**Example:**
+**Examples:**
 
 ```bash
-python3 monday_time_input.py "eyJhbGc..." "12345678" "seguimiento_del_tiempo__1"
+# Use default times (09:00–11:00)
+python3 monday_time_input.py "eyJhbGc..." "12345678"
+
+# Specify custom times
+python3 monday_time_input.py "eyJhbGc..." "12345678" --start-time 08:30 --end-time 10:30
 ```
 
 **Interactive Prompts:**
@@ -40,33 +87,40 @@ python3 monday_time_input.py "eyJhbGc..." "12345678" "seguimiento_del_tiempo__1"
 - `x-csrf-token`: CSRF token from request headers (required for API calls)
 - `Start date`: Beginning of backfill range (default: 1st of current month)
 - `Skip weekends?`: Automatically skip Saturdays and Sundays
+- For each day without an entry, you'll be prompted for start and end times (uses your CLI defaults)
 
-**Defaults:**
+### Generate Time Reports
 
-- Start time: `17:00`
-- End time: `19:00`
-
-### `monday_time_report.py` — Generate Time Reports
+> `monday_time_report.py`
 
 Fetch time entries and display aggregated daily and weekly summaries.
 
 **Usage:**
 
 ```bash
-python3 monday_time_report.py <jwt_session_token> <item_id> [column_id]
+python3 monday_time_report.py <jwt_session_token> <item_id> [--start-time HH:MM] [--end-time HH:MM]
 ```
 
 **Parameters:**
 
 - `jwt_session_token`: Your Monday.com JWT session token
 - `item_id`: Monday.com item ID for the duration column
-- `column_id` *(optional)*: Column ID (default: `seguimiento_del_tiempo__1`)
+- `--start-time` *(optional)*: Reference start time (HH:MM, default: `09:00`, for documentation)
+- `--end-time` *(optional)*: Reference end time (HH:MM, default: `11:00`, for documentation)
 
-**Example:**
+**Examples:**
 
 ```bash
+# Generate report with defaults
 python3 monday_time_report.py "eyJhbGc..." "12345678"
+
+# With custom reference times
+python3 monday_time_report.py "eyJhbGc..." "12345678" --start-time 08:00 --end-time 18:00
 ```
+
+**Interactive Prompts:**
+
+- `Start date`: Report start date (default: 1st of current month)
 
 **Output:**
 
@@ -83,66 +137,12 @@ python3 monday_time_report.py "eyJhbGc..." "12345678"
   Total: 75.50h over 38 days
 ```
 
-## Prerequisites
-
-1. **Python 3+**
-2. **curl** (for HTTP requests)
-3. **Monday.com Account Access**
-   - JWT session token (found in browser cookies or request headers)
-   - Item ID (visible in Monday.com board URL or API)
-   - Column ID (can be extracted from API responses)
-
-### How to Get Your JWT Token
-
-1. Open Monday.com in your browser
-2. Open Developer Tools (F12 / Cmd+Shift+I)
-3. Go to **Application** → **Cookies**
-4. Find the `jwt_session_token` cookie and copy its value
-
-### How to Get CSRF Token
-
-1. In Developer Tools, go to **Network** tab
-2. Make a request to your Monday.com board
-3. Look for any POST request headers
-4. Find the `x-csrf-token` header value
-
-## Installation
-
-No external dependencies required beyond Python 3 and curl (both standard on macOS and Linux).
-
-```bash
-git clone <repo-url>
-cd no-more-monday
-chmod +x monday_time_*.py
-```
-
 ## Security Notes
 
 ⚠️ **Never commit JWT or CSRF tokens to version control.**
 
 - Keep tokens in environment variables or a local `.env` file
 - Use `.gitignore` to prevent accidental commits
-
-## Workflow Example
-
-1. **Backfill entries:**
-
-   ```bash
-   python3 monday_time_input.py $JWT_TOKEN 12345678
-   ```
-
-   - Set start date to 1st of month
-   - Skip weekends: `Y`
-   - CSRF token when prompted
-
-2. **Generate report:**
-
-   ```bash
-   python3 monday_time_report.py $JWT_TOKEN 12345678
-   ```
-
-   - View daily and weekly summaries
-   - Verify all entries were logged correctly
 
 ## License
 
